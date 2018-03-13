@@ -1,6 +1,7 @@
 Smart contract description on blockchain AI(BCAI):
 Nodes defination:
 
+
 A: client, who has task need to be computed;	B: server, who can do task and get payment
 		C,D,E: three validators to validate whether result from B is acceptable.
 		X: the smart contract itself.
