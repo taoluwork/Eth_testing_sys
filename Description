@@ -1,0 +1,75 @@
+Smart contract description on blockchain AI(BCAI):
+Nodes defination:
+
+A: client, who has task need to be computed;	B: server, who can do task and get payment
+		C,D,E: three validators to validate whether result from B is acceptable.
+		X: the smart contract itself.
+Message flow:
+
+A   --request→  X   --assign→  B --result→ X --validate→ B,C,D --valid--> X --issue payment-> All
+
+
+The whole scenario is working in following steps:
+1. Deploy X to the blockchain, (for testing use Remix java virtual environment for now)
+
+2. A send task_request to X. triggering a new round of service.
+	Task_request message includes:
+	1.RequestID: uint
+	2. DataID:		//Let’s say raw data is stored off-chain. Use this ID to achieve data
+	3.Target: unit		//error target defined by A, lets say this is a fixed length percentage. E.g. correction rate = 95.1234%, then target = 951234. Correct rate greater than this is acceptable.
+	4.TimeLimit: unit 	//time need to be done, deadline = Timelimit + now.
+	5.Price: unit		//the money willing to pay, this amount is also deducted from A      and fund the X as deposit ( we can use msg.value)
+
+3. X send task_assignment to B.
+	What X do here:
+Evaluate the possibility of task: only if valid request can be issued a taskID and assigned to node. Descard all invalid ID, such as not enough deposit, not enough time etc, to avoid DoS attack.
+Issue task and send task_assignment to B (say is already selected as server)
+Record task_sender, taskID,requestID,serverID(which is B’s address)
+
+
+	Task_assignment includes:
+TaskID: uint		//issued by X, may different from Request ID.
+DataID: uint
+Target: uint
+TimeLimit: uint
+Price: uint		//this money will not be sent until contract is fulfilled.
+
+
+4. B send task_complete back to X
+	What X do here:
+Check time pass due or not. Discard if late.
+
+	Task_complete:
+Task ID: uint
+Result ID: uint		//lets say result is not stored on blockchain, nodes can use this ID to fetch data off-chain somehow.
+
+
+5. X send task_validate to B,C,D
+	Task_validate includes:
+	1.TaskID:uint
+	2.ResultID
+	3.DataID
+	4.Target
+	5.Price			//validator will get partial payment, this price is just the original, do the partial calculation based on this. Say actual payment = 0.1*price.
+
+6. B,C,D will vote on whether result is valid. B,C,D send task_result to X.
+	Task_result includes:
+Valid: bool
+
+X will count the number of vote ‘True’ and tolerate up to ⅓ failure, that is # of ‘True’ > ⅔ n is valid.
+
+7. X will issue payment to server A, and validators B,C,D. Also send task_report to A.
+	Let’s define here: A got 60% price
+			B,C,D will receive 10%
+			The rest 10% will be collected as service fee by contract.
+
+	Task_report:
+	1.TaskID
+	2.ResultID
+	3.ValidationRate	(x/n approved)
+  
+  
+
+Changes (Landry):
+
+taskID will be computed by contract and not passed in. 
