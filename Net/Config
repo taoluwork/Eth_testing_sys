@@ -1,0 +1,25 @@
+This file described how to build a local cluster and let multiple nodes connected to your network.
+
+1. Create a genesis.json file. In this test, we use genesis_0226.json as an example.
+2. Get the latest version of Geth installed on all the computers.
+3. Initial genesis file in each seperate directory.
+    > geth --datadir 01/ init genesis_0226.json
+    
+4. On the main node, generate and run a bootnodes.
+    > bootnode -genkey bootnode.key
+    > bootnode -nodekey bootnode.key
+    
+    >> self=enode://2563447876d4e2c82f796ac3fbec2a22db9d8adef543d92f842e587c1676730ba304a7047513a43c1648b7422e1745aeeb89c784c25a4d2efebc61b80b8e2093@[::]:30301
+  check your ip: https://www.whatismyip.com/
+        130.39.223.116 replace [::]
+    >> enode://2563447876d4e2c82f796ac3fbec2a22db9d8adef543d92f842e587c1676730ba304a7047513a43c1648b7422e1745aeeb89c784c25a4d2efebc61b80b8e2093@[130.39.223.116]:30301
+
+5. Run geth with that bootnodes and unique networkid and try addPeer with each other.
+    > geth --datadir 01/ --networkid 152 --bootnodes enode://2563447876d4e2c82f796ac3fbec2a22db9d8adef543d92f842e587c1676730ba304a7047513a43c1648b7422e1745aeeb89c784c25a4d2efebc61b80b8e2093@[130.39.223.116]:30301 console
+
+6. Identify the node id:
+    >> self=enode://2cbcbfee9208f644db152050a2592b909ddf9828639f45a0ce3ecb6724aee7be583c597188bc0061a1e418706ff0ba992b9a2071bffcc59cbe938bf78188b56b@[::]:30303
+    modify the ip address >> enode://2cbcbfee9208f644db152050a2592b909ddf9828639f45a0ce3ecb6724aee7be583c597188bc0061a1e418706ff0ba992b9a2071bffcc59cbe938bf78188b56b@[130.39.223.116]:30303
+    
+7. On the other computer run the second node
+    > 
