@@ -22,4 +22,7 @@ This file described how to build a local cluster and let multiple nodes connecte
     modify the ip address >> enode://2cbcbfee9208f644db152050a2592b909ddf9828639f45a0ce3ecb6724aee7be583c597188bc0061a1e418706ff0ba992b9a2071bffcc59cbe938bf78188b56b@[130.39.223.116]:30303
     
 7. On the other computer run the second node
-    > 
+    > geth --datadir 01/ --networkid 152 --bootnodes enode://2563447876d4e2c82f796ac3fbec2a22db9d8adef543d92f842e587c1676730ba304a7047513a43c1648b7422e1745aeeb89c784c25a4d2efebc61b80b8e2093@[130.39.223.116]:30301 console
+    
+    nodeID: enode://b300b93521ec7aed1ab41fb4421d88a4f6bfc4441a25a7dc1d8e6f1bb8e8e77c2355b67c663f5f165b45554259c760ad12ce3ba6e26af80d66bc574626ad8385@[167.96.53.232]:30303
+    167.96.53.232
