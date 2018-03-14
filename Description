@@ -60,7 +60,7 @@ Valid: bool
 X will count the number of vote ‘True’ and tolerate up to ⅓ failure, that is # of ‘True’ > ⅔ n is valid.
 
 7. X will issue payment to server A, and validators B,C,D. Also send task_report to A.
-	Let’s define here: A got 60% price
+	Let’s define here: A got 60   90 % price
 			B,C,D will receive 10%
 			The rest 10% will be collected as service fee by contract.
 
