@@ -1,7 +1,7 @@
 pragma solidity ^0.4.0;
 
 contract TaskContract {
-    
+
     uint128 public requestCount; //total number of requests sent to contract
     uint128 public provideCount; //total number of requests that contract found provider for
     uint64 public numProviders; //number of active providers in the mapping below
@@ -20,10 +20,16 @@ contract TaskContract {
 
     struct Request {
         address addr;
+        address provider;
+        uint128 reqID;
         uint64 dataID;
-        uint16 accuracy;
+        uint64 resultID;
         uint64 time;
+        uint16 accuracy;
         uint256 price;
+        uint64 numValidationsNeeded;
+        bool[] validations;
+        bool isValid;
         bool complete;
     }
 
@@ -35,21 +41,18 @@ contract TaskContract {
         uint16 maxTarget;
         uint256 minPrice;
         bool available; // Used to determine if provider is already doing something
-        bool isReal; // Used to determine if mapping exists for this provider
     }
 
 
 
 
 
-
-
     // Function called to become a provider of tasks for anyone requesting. 
-    // NOTE: does nothing if already a provider (if isReal is true) - also used to update
+    // NOTE: does nothing if already a provider - also used to update
     function startProviding(uint64 maxTime, uint16 maxTarget, uint64 minPrice) public {
         // If new provider
         if (providers[providerID[msg.sender]].addr != msg.sender) { // address is not on the chain
-            Provider memory prov = Provider(msg.sender, 0, 0, maxTime, maxTarget, minPrice, true, true);
+            Provider memory prov = Provider(msg.sender, 0, 0, maxTime, maxTarget, minPrice, true);
             // If there are vacant providerIDs
             if (spaces.length > 0) {
                 providerID[msg.sender] = pop(); // Pops the most recently vacated from spaces
@@ -62,38 +65,24 @@ contract TaskContract {
             providers[providerID[msg.sender]] = prov;
             numProviders++;
         }
-        else { //old provider -- address is on the chain
-            // if the provider stopped but still remains on the chain
-            if (!providers[providerID[msg.sender]].isReal) {
-                Provider memory oldProv = Provider(msg.sender, 0, 0, maxTime, maxTarget, minPrice, true, true);
-                // If there are vacant providerIDs
-                if (spaces.length > 0) {
-                    providerID[msg.sender] = pop(); // Pops the most recently vacated from spaces
-                }
-                // Else put them at the end of the list
-                else {
-                    providerID[msg.sender] = numProviders;
-                }
-                // These update either way
-                providers[providerID[msg.sender]] = oldProv;
-                numProviders++;
-            }
-            else {
-                Provider memory updateProv = Provider(msg.sender, providers[providerID[msg.sender]].providedCount, providers[providerID[msg.sender]].requestedCount, maxTime, maxTarget, minPrice, true, true);
-                providers[providerID[msg.sender]] = updateProv;
-            }
+        else { // Updating old provider -- address is on the chain
+            providers[providerID[msg.sender]].maxTime = maxTime;
+            providers[providerID[msg.sender]].maxTarget = maxTarget;
+            providers[providerID[msg.sender]].minPrice = minPrice;
+            providers[providerID[msg.sender]].available = true;
         }
     }
-    
+
     // Treats msg.sender as provider and makes them unavailable for requests
     function stopProviding() public {
         // If the sender is already a valid provider
-        if (providers[providerID[msg.sender]].isReal) {
+        if (providers[providerID[msg.sender]].addr == msg.sender) {
             providers[providerID[msg.sender]].available = false;
-            providers[providerID[msg.sender]].isReal = false;
+            providers[providerID[msg.sender]].addr = 0x0;
             // checking that theyre not the last provider to register 
             if (providerID[msg.sender] != numProviders-1) {
                 // Label ID as vacant
+                // Possibly spaces.length = spaces.push()?
                 spaces.push(providerID[msg.sender]);
             }
             numProviders--;
@@ -102,15 +91,15 @@ contract TaskContract {
 
     // Used to be sure you are seen as available. e.g. power outage caused you to lose available status on network.
     // Not to be called after stopProviding to resume -- startProviding used in this case.
-    function restart() public returns (bool) {
-        if (providers[providerID[msg.sender]].addr == msg.sender && providers[providerID[msg.sender]].isReal) {
-            providers[providerID[msg.sender]].available = true;
-            return true;
-        }
-        else {
-            return false; // provider wasnt found in mapping
-        }
-    }
+    //function restart() public returns (bool) {
+    //if (providers[providerID[msg.sender]].addr == msg.sender) {
+    //     providers[providerID[msg.sender]].available = true;
+    //       return true;
+    //    }
+    //else {
+    //    return false; // provider wasnt found in mapping
+    //  }
+    //}
 
     // Used to dynamically remove elements from array of open provider spaces. 
     function pop()  private returns(uint64) {
@@ -125,46 +114,41 @@ contract TaskContract {
 
 
 
-
-
-
-
-
-
     // Requester will call contract so it can find a provider for task.
     // Requester calls this function with:
     // dataID, target (accuracy), timeLimit, price
     // NOTE: price should match msg.value. we will come back to this- one request at a time?
-    function requestTask(uint64 dataID, uint16 target, uint64 time) payable returns (bool) {
-        requestCount++;
-        balances[msg.sender] += msg.value; // records how much the requester sent
-        Request memory req = Request(msg.sender, dataID, target, time, msg.value, false);
-        requests[requestCount] = req; //NOTE: this will start at one 
-        return assignTask(requestCount, dataID, target, time, msg.value);
+    // Assumes price is including the cost for verification
+    function requestTask(uint64 dataID, uint16 target, uint64 time) payable public returns (bool) {
+        bool[] memory emptyArray;
+        Request memory req = Request(msg.sender, 0x0, requestCount, dataID, 0, time, target, msg.value, 0, emptyArray, false, false);
+        return assignTask(req);
     }
 
     // Assigning task to one of the available providers. Only called from requestTask (private)
-    function assignTask(uint128 taskID, uint64 dataID, uint16 target, uint64 time, uint256 price) private returns (bool) {
-        for (uint64 i=0; i<numProviders; i++) {
+    //function assignTask(uint128 taskID, uint64 dataID, uint16 target, uint64 time, uint256 price) private returns (bool) {
+    function assignTask(Request req) private returns (bool) {
+        for (uint64 i=0; i<numProviders + spaces.length; i++) {
             // Check if request conditions meet the providers requirements
-            if (target <= providers[i].maxTarget && time <= providers[i].maxTime && price >= providers[i].minPrice && providers[i].available) {
+            if (providers[i].addr == 0x0) {
+                continue;
+            }
+            if (req.accuracy <= providers[i].maxTarget && req.time <= providers[i].maxTime && req.price >= providers[i].minPrice && providers[i].available) {
                 //NOTE: Send to provider -- possibly an event? taskReceived
+                // Something happens here that causes the provider to begin work
+                // Possibly send the requestID to the provider to allow them to get info
+                balances[msg.sender] += msg.value; // records how much the requester sent
+                req.provider = providers[i].addr;
+                requests[requestCount] = req; // save to mapping of requests
                 providers[i].available = false;
+                requestCount++;
                 return true;
             }
         }
         // No provider was found matching the criteria -- request failed
+        req.addr.transfer(req.price); // Returns the ether to the sender 
         return false;
     }
-
-
-
-
-
-
-
-
-
 
 
 
@@ -172,35 +156,77 @@ contract TaskContract {
 
     // Provider will call this when they are done and the data is available.
     // This will invoke the validation stage
-    function completeTask(uint128 taskID, uint64 resultID) public returns (bool) {
-        requests[taskID].complete = true;
-        uint256 payment = requests[taskID].price;
-        return validateTask(msg.sender, taskID, resultID, payment);
-        //NOTE: need to confirm that msg sender is the actual provider
+    function completeTask(uint128 reqID, uint64 resultID) public returns (bool) {
+        // Confirm msg.sender is actually the provider of the task he claims
+        if (msg.sender == requests[reqID].provider) {
+            requests[reqID].complete = true;
+            requests[reqID].resultID = resultID;
+            return validateTask(reqID);
+        }
+        else {
+            return false;
+        }
     }
 
     // Called by completeTask before finalizing stuff. Contract checks with validators
-    function validateTask(address provider, uint128 taskID, uint64 resultID, uint256 payment) private returns (bool) {
-        uint numValidators = numProviders / 10; // need validation from 1/10 of nodes -- could change
-        uint validations = 0;
-        uint partialPayment = payment / 100;
-        uint count = 0;
-        for (uint64 i=0; i<numProviders && count<numValidators; i++) {
+    // Returns false if there wasnt enough free providers to send out the required number of validation requests
+    function validateTask(uint128 reqID) private returns (bool) {
+        uint64 numValidators = 3; // need validation from 1/10 of nodes -- could change
+        //uint numValidators = numProviders / 10; 
+        uint attempts = 0;
+        requests[reqID].numValidationsNeeded = numValidators;
+        for (uint64 i=0; i<numProviders + spaces.length && attempts<numValidators; i++) {
+            if (providers[i].addr == 0x0) {
+                continue;
+            }
             if (providers[i].available) {
-                //if available, ask them to validate. 
-                //do the validation
-                //pay the validators 0.01 * payment
-                count++;
-                providers[i].addr.transfer(partialPayment);
-                //if it was valid then validations++;
-                validations++; // assumes it was valid 
+                // Something happens here that causes the validator to begin (validatorRequest)
+                attempts++;
+                // Something happens here that informs the contract whether the validation was successful
             }
         }
-        if (count >= numValidators && validations >= count * 2 / 3  ) { // if 2/3 of validation attempts were successful
-            provider.transfer(payment - (partialPayment*count)); // provider gets remainder of money after validations
+        if (attempts == numValidators) {
             return true;
         }
         return false;
     }
 
+
+
+
+
+    // needs to be more secure by ensuring the submission is coming from someone legit 
+    function submitValidation(uint128 reqID, bool result) public returns (bool) {
+        // Pay the validator 
+        uint partialPayment = requests[reqID].price / 100; // amount each validator is paid
+        msg.sender.transfer(partialPayment);
+        balances[requests[reqID].addr] -= partialPayment;
+        // Put the result in the request struct
+        requests[reqID].validations.push(result);
+        // If enough validations have been submitted
+        if (requests[reqID].validations.length == requests[reqID].numValidationsNeeded) {
+            checkValidation(reqID, requests[reqID].price - requests[reqID].numValidationsNeeded * partialPayment);
+        }
+    }
+    
+    function checkValidation(uint128 reqID, uint payment) private returns (bool) {
+        // Add up successful validations
+        uint64 successCount = 0;
+        for (uint64 i=0; i<requests[reqID].validations.length; i++) {
+            if (requests[reqID].validations[i]) successCount++;
+        }
+        // if 2/3 of validation attempts were successful
+        if (successCount  >= requests[reqID].numValidationsNeeded * 2 / 3  ) { 
+            // if 2/3 of validations were valid then provider gets remainder of money
+            requests[reqID].provider.transfer(payment); 
+            balances[requests[reqID].addr] -= payment;
+            requests[reqID].isValid = true;
+            return true;
+        }
+        // otherwise, work was invalid, money goes back to original requester
+        requests[reqID].addr.transfer(payment);
+        balances[requests[reqID].addr] -= payment;
+        return false;
+    }
+    
 }
