@@ -1,5 +1,5 @@
-Smart contract description on blockchain AI(BCAI):
-Nodes defination:
+###Smart contract description on blockchain AI(BCAI):
+#Nodes defination:
 
 
 A: client, who has task need to be computed;	B: server, who can do task and get payment
