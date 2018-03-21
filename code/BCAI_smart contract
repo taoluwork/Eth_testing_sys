@@ -43,6 +43,11 @@ contract TaskContract {
         bool available; // Used to determine if provider is already doing something
     }
 
+    event TaskAssigned(address provider, uint128 reqID); // next step: call completeTask
+    
+    event ValidationRequested(address validator, uint128 reqID); // next step: validator calls submitValidation
+    
+    event TaskCompleted(address requestor, uint128 reqID); // done
 
 
 
@@ -134,14 +139,13 @@ contract TaskContract {
                 continue;
             }
             if (req.accuracy <= providers[i].maxTarget && req.time <= providers[i].maxTime && req.price >= providers[i].minPrice && providers[i].available) {
-                //NOTE: Send to provider -- possibly an event? taskReceived
-                // Something happens here that causes the provider to begin work
-                // Possibly send the requestID to the provider to allow them to get info
                 balances[msg.sender] += msg.value; // records how much the requester sent
                 req.provider = providers[i].addr;
                 requests[requestCount] = req; // save to mapping of requests
                 providers[i].available = false;
                 requestCount++;
+                //EVENT
+                emit TaskAssigned(providers[i].addr, req.reqID); // Let provider listen for this event to see he was selected
                 return true;
             }
         }
@@ -180,9 +184,9 @@ contract TaskContract {
                 continue;
             }
             if (providers[i].available) {
-                // Something happens here that causes the validator to begin (validatorRequest)
+                // EVENT: informs validator that they were selected and need to validate
+                emit ValidationRequested(providers[i].addr, reqID);
                 attempts++;
-                // Something happens here that informs the contract whether the validation was successful
             }
         }
         if (attempts == numValidators) {
@@ -220,13 +224,16 @@ contract TaskContract {
             // if 2/3 of validations were valid then provider gets remainder of money
             requests[reqID].provider.transfer(payment); 
             balances[requests[reqID].addr] -= payment;
-            requests[reqID].isValid = true;
-            return true;
+            requests[reqID].isValid = true; // Task was successfully completed! 
         }
-        // otherwise, work was invalid, money goes back to original requester
-        requests[reqID].addr.transfer(payment);
-        balances[requests[reqID].addr] -= payment;
-        return false;
+        // otherwise, work was invalid, the providers payment goes back to requester
+        else {
+            requests[reqID].addr.transfer(payment);
+            balances[requests[reqID].addr] -= payment;
+        }
+        // EVENT: task is done whether successful or not
+        emit TaskCompleted(requests[reqID].addr, reqID);
+        return requests[reqID].isValid;
     }
-    
+
 }
