@@ -1,4 +1,12 @@
-
+Smart contract description on blockchain AI(BCAI):
+Nodes:
+A: client (requestor), who has task need to be computed;
+	Task will be saved on the contract storage as a struct Request.	
+B: server (provider), who can do task and get payment
+	Contract maintains a dynamic list of active providers -- you can leave and rejoin at any time.
+C,D,E: validators to validate whether result from B is acceptable.
+	In the contract, providers that are not currently assigned a task are considered validators.
+X: the smart contract itself.
 
 
 Message flow:
