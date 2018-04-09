@@ -1,76 +1,150 @@
 Smart contract description on blockchain AI(BCAI):
-Nodes defination:
+Nodes:
+A: client (requestor), who has task need to be computed;
+	Task will be saved on the contract storage as a struct Request.	
+B: server (provider), who can do task and get payment
+	Contract maintains a dynamic list of active providers -- you can leave and rejoin at any time.
+C,D,E: validators to validate whether result from B is acceptable.
+	In the contract, providers that are not currently assigned a task are considered validators.
+X: the smart contract itself.
 
 
-A: client, who has task need to be computed;	B: server, who can do task and get payment
-		C,D,E: three validators to validate whether result from B is acceptable.
-		X: the smart contract itself.
 Message flow:
 
-A   --request→  X   --assign→  B --result→ X --validate→ B,C,D --valid--> X --issue payment-> All
+A --requestTask→ X --assignTask→ B --completeTask→ X --validateTask→ B,C,D --submitValidation--> X --checkValidation-> All
 
 
 The whole scenario is working in following steps:
-1. Deploy X to the blockchain, (for testing use Remix java virtual environment for now)
+0. Deploy X to the blockchain
+	Constructor is called:
+		requestCount, provideCount, numProviders all initialized to 0
 
-2. A send task_request to X. triggering a new round of service.
-	Task_request message includes:
-	1.RequestID: uint
-	2. DataID:		//Let’s say raw data is stored off-chain. Use this ID to achieve data
-	3.Target: unit		//error target defined by A, lets say this is a fixed length percentage. E.g. correction rate = 95.1234%, then target = 951234. Correct rate greater than this is acceptable.
-	4.TimeLimit: unit 	//time need to be done, deadline = Timelimit + now.
-	5.Price: unit		//the money willing to pay, this amount is also deducted from A      and fund the X as deposit ( we can use msg.value)
+1. A send requestTask to X
+	requestTask(uint64 dataID, uint16 target, uint64 time) payable public returns (bool)
+	1. dataID	//Let’s say raw data is stored off-chain. Use this ID to achieve data
+	2. target	//error target defined by A, lets say this is a fixed length percentage. E.g. correction rate = 95.1234%, then target = 951234. Correct rate greater than this is acceptable.
+	3. time		//time need to be done, deadline = Timelimit + now.
+	4. msg.value 	//the money willing to pay, this is passed in the value field of the Tx and saved in requestors balance
+	
+	Here the contract will create a struct Request using the parameters with the following values:
+	struct Request {
+		address addr; 			//msg.sender - address of the requestor
+		address provider;		//0x0 - updateed in assignTask if an available provider is found
+		uint128 reqID;			//requestCount -- global counter
+		uint64 dataID;			//parameter passed in as dataID
+		uint64 time;			//parameter passed in as time
+		uint16 accuracy;		//parameter passed in as target
+		uint256 price; 			//parameter passed in as msg.value
+		uint64 resultID;		//0 - changed in completeTask
+		uint64 numValidationsNeeded; 	//0 - changed when provider submits results and validations are needed
+		bool[] validations;		//emptyArray - filled in submitValidation calls
+		bool isValid;			//false - changed in checkValidation
+		bool complete;			//false - changed in completeTask
+    	}
+	
+	PSUEDOCODE
+	init emptyArray
+	init Request req
+	return assignTask(req)
+	
+2. X executes assignTask
+	assignTask(Request req) private returns (bool)
+	1. req - the request struct built in requestTask -- updated throughout process and can be accessed via mapping
+	
+	PSUEDOCODE
+	For each entry of provider mapping:
+		if real provider and the request conditions meet their requirements and they are available
+			update global balances
+			update request.provider
+			save request to mapping
+			provider.availability = false
+			increment global requestCount
+			emit event for provider to see and act upon
+			return true
+		else
+			try next provider entry in mapping
+	//upon failing to find provider (loop exited)
+	send ether back to requestor
+	return false
+	
+3. B sees event with his address, does the requested computation then sends completeTask to X
+	completeTask(uint128 reqID, uint64 resultID) public returns (bool)
+	1. reqID - the unique ID of the request that is being completed
+	2. resultID - similar to dataID. Let’s say raw data is stored off-chain. Use this ID to achieve data
+	
+	This function confirms that the msg.sender was the original chosen provider then calls validateTask if they were
+	
+	PSUEDOCODE
+	If msg.sender is the provider of request reqID
+		update request.complete
+		update request.resultID
+		return validateTask(reqID);
+	else 
+		return false
+		
+4. X executes validateTask
+	validateTask(uint128 reqID) private returns (bool)
+	1. reqID - unique ID of the request that is being validated
+	
+	This function selects a certain number of providers to validate the work done by the provider B.
+	If not enough providers are available for validation then the function returns false and the provider remains unavailable
+	Each validator gets paid a predetermined amount of the original offering from the requestor.
+	
+	PSUEDOCODE
+	validatorsFound = 0
+	update request.numValidationsNeeded (possibly 1/10th of total providers, but set to 3 right now)
+	For each entry in the provider mapping until validatorsFound == numValidators:
+		if provider is real and available
+			emit event for validator to see and act upon (nodes C,D,E)
+			incrememnt validatorsFound
+		else 
+			try next provider entry in mapping
+	if validatorsFound == numValidators return true
+	else return false
+	
+	
+5. C,D,E see event to validate with their address, do computation, and send result to submitValidation
+	submitValidation(uint128 reqID, bool result) public returns (bool)
+	1. reqID - unique ID used to refer to request being validated
+	2. result - true or false, whether results were validated or not
+	
+	CURRENTLY DOES NOT CHECK WHETHER THE VALIDATORS WERE THE ACTUAL ONES CHOSEN
+	ALSO DOES NOT ALSO HAVE A RETURN VALUE -- COULD BE BAD
+	
+	This function takes in validation results and saves them into the validations array within the request struct
+	When the contract sees that enough validations have been submitted it will call checkValidation to determine if the provider is paid.
+	
+	
+	PSUEDOCODE
+	init partialPayment - the amount each validator gets paid (currently 1/100th of original offer)
+	pay validator and deduct the cost from requestors on-contract balance
+	push result onto request.validations array
+	if all the validations have been submitted
+		payment = remaining ether for task after validators are paid
+		return checkValidation(reqID, payment)
+		
 
-3. X send task_assignment to B.
-	What X do here:
-Evaluate the possibility of task: only if valid request can be issued a taskID and assigned to node. Descard all invalid ID, such as not enough deposit, not enough time etc, to avoid DoS attack.
-Issue task and send task_assignment to B (say is already selected as server)
-Record task_sender, taskID,requestID,serverID(which is B’s address)
-
-
-	Task_assignment includes:
-TaskID: uint		//issued by X, may different from Request ID.
-DataID: uint
-Target: uint
-TimeLimit: uint
-Price: uint		//this money will not be sent until contract is fulfilled.
-
-
-4. B send task_complete back to X
-	What X do here:
-Check time pass due or not. Discard if late.
-
-	Task_complete:
-Task ID: uint
-Result ID: uint		//lets say result is not stored on blockchain, nodes can use this ID to fetch data off-chain somehow.
-
-
-5. X send task_validate to B,C,D
-	Task_validate includes:
-	1.TaskID:uint
-	2.ResultID
-	3.DataID
-	4.Target
-	5.Price			//validator will get partial payment, this price is just the original, do the partial calculation based on this. Say actual payment = 0.1*price.
-
-6. B,C,D will vote on whether result is valid. B,C,D send task_result to X.
-	Task_result includes:
-Valid: bool
-
-X will count the number of vote ‘True’ and tolerate up to ⅓ failure, that is # of ‘True’ > ⅔ n is valid.
-
-7. X will issue payment to server A, and validators B,C,D. Also send task_report to A.
-	Let’s define here: A got 60% price
-			B,C,D will receive 10%
-			The rest 10% will be collected as service fee by contract.
-
-	Task_report:
-	1.TaskID
-	2.ResultID
-	3.ValidationRate	(x/n approved)
-  
-  
-
-Changes (Landry):
-
-taskID will be computed by contract and not passed in. 
+	
+6. X calls checkValidation
+	checkValidation(uint128 reqID, uint payment) private returns (bool)
+	1. reqID - unique ID used to refer to request that was validated
+	2. payment - amount of ether that the provider will receive if work is successfully validated
+	
+	This function looks through each submitted validation and determines if 2/3 of the submissions were successful.
+	If so the work was valid, and the provider gets paid.
+	Otherwise the validations failed and the requestor gets some of the money back (validators are paid either way)
+	
+	PSUEDOCODE
+	successCount = 0
+	for each validation submitted:
+		if validation == true
+			successCount++
+	if successCount >= 2/3 of request.numValidationsNeeded
+		send payment to provider and deduct value from requestors on-contract balance
+		request.isValid <- true
+	else 
+		send payment back to requestor and deduct value from his on-contract balance
+	emit event saying task is done (whether successful or not) for requestor to see
+	return request.isValid
+		
+		
