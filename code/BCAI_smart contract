@@ -23,10 +23,10 @@ contract TaskContract {
         address provider;
         uint128 reqID;
         uint64 dataID;
-        uint64 resultID;
         uint64 time;
         uint16 accuracy;
         uint256 price;
+        uint64 resultID;
         uint64 numValidationsNeeded;
         bool[] validations;
         bool isValid;
@@ -121,12 +121,11 @@ contract TaskContract {
 
     // Requester will call contract so it can find a provider for task.
     // Requester calls this function with:
-    // dataID, target (accuracy), timeLimit, price
-    // NOTE: price should match msg.value. we will come back to this- one request at a time?
+    // dataID, target (accuracy), timeLimit, msg.value > 0
     // Assumes price is including the cost for verification
     function requestTask(uint64 dataID, uint16 target, uint64 time) payable public returns (bool) {
         bool[] memory emptyArray;
-        Request memory req = Request(msg.sender, 0x0, requestCount, dataID, 0, time, target, msg.value, 0, emptyArray, false, false);
+        Request memory req = Request(msg.sender, 0x0, requestCount, dataID, time, target, msg.value, 0, 0, emptyArray, false, false);
         return assignTask(req);
     }
 
@@ -134,10 +133,11 @@ contract TaskContract {
     //function assignTask(uint128 taskID, uint64 dataID, uint16 target, uint64 time, uint256 price) private returns (bool) {
     function assignTask(Request req) private returns (bool) {
         for (uint64 i=0; i<numProviders + spaces.length; i++) {
-            // Check if request conditions meet the providers requirements
+            // Check if they are active provider
             if (providers[i].addr == 0x0) {
                 continue;
             }
+            // Check if request conditions meet the providers requirements
             if (req.accuracy <= providers[i].maxTarget && req.time <= providers[i].maxTime && req.price >= providers[i].minPrice && providers[i].available) {
                 balances[msg.sender] += msg.value; // records how much the requester sent
                 req.provider = providers[i].addr;
@@ -177,19 +177,19 @@ contract TaskContract {
     function validateTask(uint128 reqID) private returns (bool) {
         uint64 numValidators = 3; // need validation from 1/10 of nodes -- could change
         //uint numValidators = numProviders / 10; 
-        uint attempts = 0;
+        uint validatorsFound = 0;
         requests[reqID].numValidationsNeeded = numValidators;
-        for (uint64 i=0; i<numProviders + spaces.length && attempts<numValidators; i++) {
+        for (uint64 i=0; i<numProviders + spaces.length && validatorsFound<numValidators; i++) {
             if (providers[i].addr == 0x0) {
                 continue;
             }
             if (providers[i].available) {
                 // EVENT: informs validator that they were selected and need to validate
                 emit ValidationRequested(providers[i].addr, reqID);
-                attempts++;
+                validatorsFound++;
             }
         }
-        if (attempts == numValidators) {
+        if (validatorsFound == numValidators) {
             return true;
         }
         return false;
@@ -209,7 +209,7 @@ contract TaskContract {
         requests[reqID].validations.push(result);
         // If enough validations have been submitted
         if (requests[reqID].validations.length == requests[reqID].numValidationsNeeded) {
-            checkValidation(reqID, requests[reqID].price - requests[reqID].numValidationsNeeded * partialPayment);
+            return checkValidation(reqID, requests[reqID].price - requests[reqID].numValidationsNeeded * partialPayment);
         }
     }
     
