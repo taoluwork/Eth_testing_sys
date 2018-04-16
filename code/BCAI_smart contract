@@ -74,7 +74,6 @@ contract TaskContract {
             providers[providerID[msg.sender]].maxTime = maxTime;
             providers[providerID[msg.sender]].maxTarget = maxTarget;
             providers[providerID[msg.sender]].minPrice = minPrice;
-            providers[providerID[msg.sender]].available = true;
         }
     }
 
@@ -87,7 +86,6 @@ contract TaskContract {
             // checking that theyre not the last provider to register 
             if (providerID[msg.sender] != numProviders-1) {
                 // Label ID as vacant
-                // Possibly spaces.length = spaces.push()?
                 spaces.push(providerID[msg.sender]);
             }
             numProviders--;
@@ -165,6 +163,7 @@ contract TaskContract {
         if (msg.sender == requests[reqID].provider) {
             requests[reqID].complete = true;
             requests[reqID].resultID = resultID;
+            providers[providerID[msg.sender]].available = true;
             return validateTask(reqID);
         }
         else {
