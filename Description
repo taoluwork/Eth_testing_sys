@@ -1,32 +1,24 @@
 
-Smart contract description on blockchain AI(BCAI):
-Nodes:
-A: client (requestor), who has task need to be computed;
-	Task will be saved on the contract storage as a struct Request.	
-B: server (provider), who can do task and get payment
-	Contract maintains a dynamic list of active providers -- you can leave and rejoin at any time.
-C,D,E: validators to validate whether result from B is acceptable.
-	In the contract, providers that are not currently assigned a task are considered validators.
-X: the smart contract itself.
-
-
-
-Smart contract description on blockchain AI(BCAI):
-Nodes:
-A: client (requestor), who has task need to be computed;
-	Task will be saved on the contract storage as a struct Request.	
-B: server (provider), who can do task and get payment
-	Contract maintains a dynamic list of active providers -- you can leave and rejoin at any time.
-C,D,E: validators to validate whether result from B is acceptable.
-	In the contract, providers that are not currently assigned a task are considered validators.
-X: the smart contract itself.
-
 
 Message flow:
 
 A --requestTask→ X --assignTask→ B --completeTask→ X --validateTask→ B,C,D --submitValidation--> X --checkValidation-> All
 
-
+Global variables:
+	requestCount - # of requests made
+	provideCount - # of requests that the contract was able to find a provider for
+	numProviders - number of currently registered providers
+	spaces - an array that saves the indexes of holes created in the provider mapping when stopProviding is called.
+			By popping values from the array we can assign new providers these spots in the mapping.
+Global mappings:
+	providers - maps uint64 indexes to registered Provider's struct
+	providerID - maps addresses of providers to an uint64 index for the mapping to the structs
+	balances - maps address to uint256 to keep track of money sent in through requests
+	requests - maps uint128 reqID's to Request struct 
+	
+	
+	
+	
 The whole scenario is working in following steps:
 0. Deploy X to the blockchain
 	Constructor is called:
@@ -85,13 +77,15 @@ The whole scenario is working in following steps:
 	1. reqID - the unique ID of the request that is being completed
 	2. resultID - similar to dataID. Let’s say raw data is stored off-chain. Use this ID to achieve data
 	
-	This function confirms that the msg.sender was the original chosen provider then calls validateTask if they were
+	This function confirms that the msg.sender was the original chosen provider then calls validateTask if they were.
+	Also sets the provider to be available for a new request again.
 	
 	PSUEDOCODE
 	If msg.sender is the provider of request reqID
 		update request.complete
 		update request.resultID
-		return validateTask(reqID);
+		provider.available = true
+		return validateTask(reqID)
 	else 
 		return false
 		
@@ -159,5 +153,40 @@ The whole scenario is working in following steps:
 		send payment back to requestor and deduct value from his on-contract balance
 	emit event saying task is done (whether successful or not) for requestor to see
 	return request.isValid
+	
+	
+	
+Registration System:
+	To become a provider you must register your provider address in the contracts system.
+	This works by determining what type of requests you are willing to fulfill 
+	and passing this information to the contract via startProviding function.
+	
+	1. startProviding(uint64 maxTime, uint16 maxTarget, uint64 minPrice) public 
+		1. maxTime - max time you are willing to spend on any given request
+		2. maxTarget - max accuracy you can be expected to meet for a request
+		3. minPrice - minimum price you will complete a request for
+
+		This function allows a new provider to register and also allows an old provider to 
+		update their parameters for the type of requests they will do.
+
+		PSUEDOCODE
+		if address isnt already a registered provider
+			create the provider and add them to first empty space in the mappings
+			numProviders++
+		else (address was found in mapping)
+			update maxTime, maxTarget, minPrice
+			
+	2. stopProviding() public
+		This function will be called when a provider is done offering his cpu to complete tasks.
+		It will remove his address from the mappings and create an empty space for a new provider to fill.
+		If they were the most recent provider to register then no empty space will be created, just remove them.
 		
-		
+		PSUEDOCODE
+		if sender is a registered provider
+			provider.available = false
+			provider.addr = 0
+			if sender is not the most recent provider to register
+				save their index to spaces array so it can be filled by future provider
+			numProviders--
+			
+			
