@@ -1,4 +1,5 @@
 
+
 Message flow:
 
 A --requestTask→ X --assignTask→ B --completeTask→ X --validateTask→ B,C,D --submitValidation--> X --checkValidation-> All
