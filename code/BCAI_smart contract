@@ -2,14 +2,14 @@ pragma solidity ^0.4.0;
 
 contract TaskContract {
 
-    uint128 public requestCount; //total number of requests sent to contract
-    uint128 public provideCount; //total number of requests that contract found provider for
-    uint64 public numProviders; //number of active providers in the mapping below
-    mapping (uint64 => Provider) public providers; //list of known providers. must apply. maps providerID to struct
-    mapping (address => uint64) public providerID; //NOTE: possible not needed
-    mapping (address => uint256) public balances; //for keeping track of how much money requesters have sent
-    mapping (uint128 => Request) public requests; //NOTE: possibly not needed? could change name to tasks.
-    uint64[] public spaces; // Open spaces where providers left. should be filled when new provider comes
+    uint128 public requestCount;                    //total number of requests sent to contract
+    uint128 public provideCount;                    //total number of requests that contract found provider for
+    uint64 public numProviders;                     //number of active providers in the mapping below
+    mapping (uint64 => Provider) public providers;  //list of known providers. must apply. maps providerID to struct
+    mapping (address => uint64) public providerID;  //NOTE: possible not needed
+    mapping (address => uint256) public balances;   //for keeping track of how much money requesters have sent
+    mapping (uint128 => Request) public requests;   //NOTE: possibly not needed? could change name to tasks.
+    uint64[] public spaces;                         // Open spaces where providers left. should be filled when new provider comes
 
     // Deploying code -- run once
     function TaskContract() public {
@@ -22,32 +22,32 @@ contract TaskContract {
         address addr;
         address provider;
         uint128 reqID;
-        uint64 dataID;
-        uint64 time;
-        uint16 accuracy;
+        uint64  dataID;
+        uint64  time;
+        uint16  accuracy;
         uint256 price;
-        uint64 resultID;
-        uint64 numValidationsNeeded;
-        bool[] validations;
-        bool isValid;
-        bool complete;
+        uint64  resultID;
+        uint64  numValidationsNeeded;
+        bool[]  validations;
+        bool    isValid;
+        bool    complete;
     }
 
     struct Provider {
         address addr;
-        uint64 providedCount;
-        uint64 requestedCount;
-        uint64 maxTime;
-        uint16 maxTarget;
+        uint64  providedCount;
+        uint64  requestedCount;
+        uint64  maxTime;
+        uint16  maxTarget;
         uint256 minPrice;
-        bool available; // Used to determine if provider is already doing something
+        bool    available; // Used to determine if provider is already doing something
     }
 
-    event TaskAssigned(address provider, uint128 reqID); // next step: call completeTask
+    event TaskAssigned(address provider, uint128 reqID);        // next step: call completeTask
     
     event ValidationRequested(address validator, uint128 reqID); // next step: validator calls submitValidation
     
-    event TaskCompleted(address requestor, uint128 reqID); // done
+    event TaskCompleted(address requestor, uint128 reqID);      // done
 
 
 
