@@ -1,0 +1,11 @@
+The function of BCAI client (user end) is to
+	1. create computation task. (package necessary info into the request)
+	2. receive result
+	3. Regenerate the AI NN locally (based on the result)
+
+The function of BCAI provider client is to
+	1. Register provider on the smart contract (startProviding)
+	2. Receive computation request
+	3. Generate local computation task (using TensorFlow framework and the parameter received)
+	4. Monitor the task to computated.
+	5. 
