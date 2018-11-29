@@ -8,4 +8,4 @@ The function of BCAI provider client is to
 	2. Receive computation request
 	3. Generate local computation task (using TensorFlow framework and the parameter received)
 	4. Monitor the task to computated.
-	5. 
+	5. send back (by call the contract function)
