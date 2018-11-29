@@ -9,3 +9,11 @@ The function of BCAI provider client is to
 	3. Generate local computation task (using TensorFlow framework and the parameter received)
 	4. Monitor the task to computated.
 	5. send back (by call the contract function)
+
+\
+
+work flow of Worker client
+1. Call startProviding (send a tx to the contract)
+2. Wait until being assigned a task (event monitoring)
+3. Do the local task (computation)
+4. Send result back (call via tx)
