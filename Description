@@ -1,11 +1,11 @@
-//version 1.0
+//version 0.9
 //Author: Taurus
 //copyright: tlu4@lsu.edu
 
 
 Smart contract description on blockchain AI(BCAI):
 
-^^Overall Desgin
+Overall Desgin:
 Nodes:
 A: user (requestor), who has task need to be computed;
 	Task will be saved on the contract storage as a struct Request.	
@@ -19,6 +19,8 @@ X: the smart contract itself.
 Message flow:
 A --requestTask→ X --assignTask→ B --completeTask→ X --validateTask→ B,C,D --submitValidation--> X --checkValidation-> All
 
+Status:
+a lifetime of Request is defined as 'Pending', 'providing', 'validating', 'complete'
 
 Smart contract Design:
 Global Struct:
@@ -34,7 +36,7 @@ Global Struct:
         uint64  numValidationsNeeded;   //user defined the validation
         bool[]  validations;        //multisignature from validations
         bool    isValid;            //the final flag
-        bool    isCompleted;        //final flag, once true, cannot be changed
+        bool    status;        		//one of the four stages
     }
     
     struct Provider {
@@ -49,16 +51,54 @@ Global Struct:
 
 Global variables:
 	uint128 public requestCount;                    //total number of requests sent to contract
-    uint128 public providingCount;                  //total number of requests that being computed (assgined)
-    uint64  public providerCount;                   //total number of active providers in the mapping below
+	uint64  public providerCount;                   //total number of active providers in the mapping below
 	
-	uint64[] public spaces 			//an array that saves the indexes of holes created in the provider mapping when stopProviding is called.
-			By popping values from the array we can assign new providers these spots in the mapping.
+	uint128 public pendingCount;					
+    uint128 public providingCount;                  //total number of requests that being computed (assgined)
+    
+	address[] public providerPool;                  //record the available providers; active objects
+    uint128[] public requestPool;                   //record the pending request;	active objects
+	
+	/////////uint64[] public spaces 			
+	//NOTE: this is deprecated since version v1.0, address is used as identifier 
+	//thus no need to keep tracking the empty spaces, no need to delete element from mapping 
+	//because every possible key is stored their.
+	//an array that saves the indexes of holes created in the provider mapping when stopProviding is called.
+	//By popping values from the array we can assign new providers these spots in the mapping.
+
 Global mappings:
-	providers - maps uint64 indexes to registered Provider's struct
-	providerID - maps addresses of providers to an uint64 index for the mapping to the structs
-	balances - maps address to uint256 to keep track of money sent in through requests
-	requests - maps uint128 reqID's to Request struct 
+	
+	mapping (address => Provider) public providerList;   
+		//list of known providers. Record every provider addr ever registered.
+		//Maps providerID to Provider object
+		//Note: providerID is like the identity of a person, it is not the identifier of the Provider object
+		//since a person could have multiple computers (multiple addresses).
+		//The address of provider is the only identifier for the provider object
+    
+	mapping (address => uint64) public providerID;      
+		//look up providerID using address     NOTE: possible not needed
+		//Address is the only identifier for provider object. providerID could possibly be same between different address.
+    	//e.g. Tom has Two account with addr_1, addr_2, but he could be assigned an unique providerID.
+	
+	
+    mapping (uint128 => Request) public requestList;    
+		//mapping requestCount to Request object, requestCount is the unique number used as identifier
+		//request changing status did not change requestCount, only effect pendingCount and providingCount;
+		//re-submit same request result in duplicate request for now
+		//TODO: handle the duplication
+		
+    mapping (address => uint128[]) public requestID;       
+		//look up requestID using user's address, tracking all the request submited by the very person
+		//NOTE: single user could have multiply requestID,
+		//for the requests, requestCount (uint128) is the only identifier.
+    	//address is not because multiple request could come from same address
+	
+    	//////uint64[] public spaces;                             //Open spaces where providers left. should be filled when new provider comes
+    	//space is deprecated
+	
+	mapping (address => uint256) public balanceList;    
+		//for keeping track of how much money requesters have sent
+    
 	
 	
 	
@@ -67,6 +107,19 @@ The whole scenario is working in following steps:
 0. Deploy X to the blockchain
 	Constructor is called:
 		requestCount, provideCount, numProviders all initialized to 0
+0.5 B startProviding()..
+	PSUEDOCODE
+	check new or existed provider
+	new {
+		update providerList: set up new config
+		update providerID //for now , disable one ID refer to multiple address
+		update pool
+		increase count
+	existed{
+		update config
+	wait to be assigned.
+
+
 
 1. A send requestTask to X
 	requestTask(uint64 dataID, uint16 target, uint64 time) payable public returns (bool)
@@ -92,8 +145,9 @@ The whole scenario is working in following steps:
     	}
 	
 	PSUEDOCODE
-	init emptyArray
+	init emptyArray (for multi-sig)
 	init Request req
+	update list, pool, count
 	return assignTask(req)
 	
 2. X executes assignTask
