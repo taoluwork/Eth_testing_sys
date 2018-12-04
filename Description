@@ -151,8 +151,10 @@ The whole scenario is working in following steps:
 	return assignTask(req)
 	
 2. X executes assignTask
-	assignTask(Request req) private returns (bool)
-	1. req - the request struct built in requestTask -- updated throughout process and can be accessed via mapping
+	//assignTask should be triggered whenever new Request submitted or new Provider attend.
+	//called within the startProviding() or requestTask()
+	assignTask( ) private returns (bool)
+	
 	
 	PSUEDOCODE
 	For each entry of provider mapping:
