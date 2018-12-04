@@ -1,9 +1,15 @@
+//version 1.0
+//Author: Taurus
+//copyright: tlu4@lsu.edu
+
 
 Smart contract description on blockchain AI(BCAI):
+
+^^Overall Desgin
 Nodes:
-A: client (requestor), who has task need to be computed;
+A: user (requestor), who has task need to be computed;
 	Task will be saved on the contract storage as a struct Request.	
-B: server (provider), who can do task and get payment
+B: worder (provider), who can do task and get payment
 	Contract maintains a dynamic list of active providers -- you can leave and rejoin at any time.
 C,D,E: validators to validate whether result from B is acceptable.
 	In the contract, providers that are not currently assigned a task are considered validators.
@@ -11,14 +17,42 @@ X: the smart contract itself.
 
 
 Message flow:
-
 A --requestTask→ X --assignTask→ B --completeTask→ X --validateTask→ B,C,D --submitValidation--> X --checkValidation-> All
 
+
+Smart contract Design:
+Global Struct:
+    struct Request {
+        address payable addr;       //payable is new feature from sol v5.0
+        address payable provider;   //addr of worker
+        uint128 reqID;              //requestID is the only identifier for each Request
+        uint64  dataID;             //dataID used to fetch the off-chain data
+        uint64  time;               //time
+        uint16  accuracy;           //target 0-100
+        uint256 price;              //the max amount he can pay
+        uint64  resultID;           //dataID to fetch the result
+        uint64  numValidationsNeeded;   //user defined the validation
+        bool[]  validations;        //multisignature from validations
+        bool    isValid;            //the final flag
+        bool    isCompleted;        //final flag, once true, cannot be changed
+    }
+    
+    struct Provider {
+        address payable addr;       //providers address
+        uint64  providedCount;      //reputaion-like reference for each provider, future use
+        uint64  requestedCount;     //
+        uint64  maxTime;            //max time
+        uint16  maxTarget;          //max target he need
+        uint256 minPrice;           //lowest price can accept
+        bool    available;          // Used to determine if provider is already doing something
+    }
+
 Global variables:
-	requestCount - # of requests made
-	provideCount - # of requests that the contract was able to find a provider for
-	numProviders - number of currently registered providers
-	spaces - an array that saves the indexes of holes created in the provider mapping when stopProviding is called.
+	uint128 public requestCount;                    //total number of requests sent to contract
+    uint128 public providingCount;                  //total number of requests that being computed (assgined)
+    uint64  public providerCount;                   //total number of active providers in the mapping below
+	
+	uint64[] public spaces 			//an array that saves the indexes of holes created in the provider mapping when stopProviding is called.
 			By popping values from the array we can assign new providers these spots in the mapping.
 Global mappings:
 	providers - maps uint64 indexes to registered Provider's struct
