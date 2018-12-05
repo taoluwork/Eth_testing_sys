@@ -1,6 +1,7 @@
 //version 0.9
 //Author: Taurus
 //copyright: tlu4@lsu.edu
+//status: updating, expected to release v1.0
 
 
 Smart contract description on blockchain AI(BCAI):
@@ -9,7 +10,7 @@ Overall Desgin:
 Nodes:
 A: user (requestor), who has task need to be computed;
 	Task will be saved on the contract storage as a struct Request.	
-B: worder (provider), who can do task and get payment
+B: worker (provider), who can do task and get payment
 	Contract maintains a dynamic list of active providers -- you can leave and rejoin at any time.
 C,D,E: validators to validate whether result from B is acceptable.
 	In the contract, providers that are not currently assigned a task are considered validators.
@@ -20,7 +21,40 @@ Message flow:
 A --requestTask→ X --assignTask→ B --completeTask→ X --validateTask→ B,C,D --submitValidation--> X --checkValidation-> All
 
 Status:
-a lifetime of Request is defined as 'Pending', 'providing', 'validating', 'complete'
+	The lifetime of Request is defined as 'Pending', 'providing', 'validating', 'complete'
+	byte Request.status is defined as follows:
+		0: 'pending',
+		1: 'providing',
+		2: 'validating',
+		3: 'complete'
+
+Struct and list:
+	struct Request;
+	struct Provider;
+	
+	uint64  public providerCount; 		//total number of active providers in the mapping below	
+	uint128 public requestCount;		//total number of requests sent to contract
+	uint128 public pendingCount;					
+    	uint128 public providingCount;				
+	
+	address[] public providerPool;      	//tracing the active           
+    	uint128[] public requestPool;		//tracking the active
+	
+	mapping (address => Provider)  public providerList;
+	mapping (address => uint64)    public providerID;
+	mapping (uint128 => Request)   public requestList;
+	mapping (address => uint128[]) public requestID;
+	mapping (address => uint256)   public balanceList;
+	
+	startProviding();	//add sender as new provider
+	stopProviding();	//
+	requestTask();		//send new request
+	assignTask(req);	//find a provider for the req
+	findRequest();		//find a req for the provider
+	
+	
+	
+
 
 Smart contract Design:
 Global Struct:
@@ -50,14 +84,26 @@ Global Struct:
     }
 
 Global variables:
-	uint128 public requestCount;                    //total number of requests sent to contract
-	uint64  public providerCount;                   //total number of active providers in the mapping below
+	uint128 public requestCount; 
+	//total number of requests sent to the contract ever.
+	//also used as the Identifier for unique Requests.
 	
-	uint128 public pendingCount;					
-    uint128 public providingCount;                  //total number of requests that being computed (assgined)
+	uint64  public providerCount;                   
+	//total number of providers ever registered
+	//not the identifier even now its unique for each provider
+	
+	uint128 public pendingCount;	
+	
+    	uint128 public providingCount;                  
+	//total number of requests that being computed (assgined)
     
-	address[] public providerPool;                  //record the available providers; active objects
-    uint128[] public requestPool;                   //record the pending request;	active objects
+	address[] public providerPool;                  
+	//record the available providers; active objects
+    	//NOTE: use providerPop() to safely remove item from the array.
+	//Editing array in solidity is costly, using some gas.
+	
+	uint128[] public requestPool;                   
+	//record the pending request;	active objects
 	
 	/////////uint64[] public spaces 			
 	//NOTE: this is deprecated since version v1.0, address is used as identifier 
@@ -66,38 +112,41 @@ Global variables:
 	//an array that saves the indexes of holes created in the provider mapping when stopProviding is called.
 	//By popping values from the array we can assign new providers these spots in the mapping.
 
-Global mappings:
-	
+Global mappings:	
 	mapping (address => Provider) public providerList;   
-		//list of known providers. Record every provider addr ever registered.
-		//Maps providerID to Provider object
-		//Note: providerID is like the identity of a person, it is not the identifier of the Provider object
-		//since a person could have multiple computers (multiple addresses).
-		//The address of provider is the only identifier for the provider object
+		//List of known providers. Record every provider addr ever registered.
+		//Maps provider address to Provider object.
+		//provider's address is the unique identifier of Provider objects.
     
 	mapping (address => uint64) public providerID;      
-		//look up providerID using address     NOTE: possible not needed
-		//Address is the only identifier for provider object. providerID could possibly be same between different address.
-    	//e.g. Tom has Two account with addr_1, addr_2, but he could be assigned an unique providerID.
-	
-	
-    mapping (uint128 => Request) public requestList;    
-		//mapping requestCount to Request object, requestCount is the unique number used as identifier
-		//request changing status did not change requestCount, only effect pendingCount and providingCount;
-		//re-submit same request result in duplicate request for now
+		//look up providerID using address, can be used to gather all the provider address from a same providerID (person).
+		//providerID is not the identifier of Provider object, address IS!
+		//ID could possibly be same between different address.
+    		//e.g. Tom has Two account with addr_1, addr_2, but he could be assigned an unique providerID.
+		//NOTE: right now ID is given by the providerCount.
+
+    	mapping (uint128 => Request) public requestList;    
+		//List of known requests. Record every request submitted. Storage.
+		//Maps requestID to Request object, requestID is the unique identifier for Request object.
+		//requestID is now assigned in sequence of submission, using requestCount.
+		//Requests' status change does not effect requestCount, only effect pendingCount and providingCount;
+		//Re-submit same request result in duplicate request for now.
 		//TODO: handle the duplication
 		
-    mapping (address => uint128[]) public requestID;       
-		//look up requestID using user's address, tracking all the request submited by the very person
+	mapping (address => uint128[]) public requestID;       
+		//Look up requestID using user's address, gathering all the request submited by the same person
 		//NOTE: single user could have multiply requestID,
-		//for the requests, requestCount (uint128) is the only identifier.
-    	//address is not because multiple request could come from same address
-	
-    	//////uint64[] public spaces;                             //Open spaces where providers left. should be filled when new provider comes
-    	//space is deprecated
+		//For the requests, requestID (uint128) is the only identifier.
+    		//Address is not because multiple request could come from same address
 	
 	mapping (address => uint256) public balanceList;    
 		//for keeping track of how much money requesters have sent
+    	
+	//////uint64[] public spaces;      //space is deprecated                       
+	//Open spaces where providers left. should be filled when new provider comes
+    	
+	
+	
     
 	
 	
@@ -105,9 +154,13 @@ Global mappings:
 	
 The whole scenario is working in following steps:
 0. Deploy X to the blockchain
-	Constructor is called:
-		requestCount, provideCount, numProviders all initialized to 0
-0.5 B startProviding()..
+	Constructor is called,
+	list, pool, array initialized.
+	count initialized.
+	
+1. submit a task or add a provider	
+
+1.1 node B startProviding(maxTime, maxTarget, minPrice)..
 	PSUEDOCODE
 	check new or existed provider
 	new {
@@ -121,12 +174,12 @@ The whole scenario is working in following steps:
 
 
 
-1. A send requestTask to X
+1.2 node A send requestTask to X
 	requestTask(uint64 dataID, uint16 target, uint64 time) payable public returns (bool)
-	1. dataID	//Let’s say raw data is stored off-chain. Use this ID to achieve data
-	2. target	//error target defined by A, lets say this is a fixed length percentage. E.g. correction rate = 95.1234%, then target = 951234. Correct rate greater than this is acceptable.
-	3. time		//time need to be done, deadline = Timelimit + now.
-	4. msg.value 	//the money willing to pay, this is passed in the value field of the Tx and saved in requestors balance
+		1. dataID	//Let’s say raw data is stored off-chain. Use this ID to achieve data
+		2. target	//error target defined by A, lets say this is a fixed length percentage. E.g. correction rate = 95.1234%, then target = 951234. Correct rate greater than this is acceptable.
+		3. time		//time need to be done, deadline = Timelimit + now.
+		4. msg.value 	//the money willing to pay, this is passed in the value field of the Tx and saved in requestors balance
 	
 	Here the contract will create a struct Request using the parameters with the following values:
 	struct Request {
@@ -141,36 +194,82 @@ The whole scenario is working in following steps:
 		uint64 numValidationsNeeded; 	//0 - changed when provider submits results and validations are needed
 		bool[] validations;		//emptyArray - filled in submitValidation calls
 		bool isValid;			//false - changed in checkValidation
-		bool complete;			//false - changed in completeTask
+		byte status;			//set to '0' (pending) when submitted
     	}
 	
-	PSUEDOCODE
+PSUEDOCODE
 	init emptyArray (for multi-sig)
-	init Request req
-	update list, pool, count
+	init Request req.
+	update list, pool, count.
+	write to storage mapping.
 	return assignTask(req)
-	
-2. X executes assignTask
-	//assignTask should be triggered whenever new Request submitted or new Provider attend.
-	//called within the startProviding() or requestTask()
-	assignTask( ) private returns (bool)
+	//NOTE: sequence of execution is important. In case of running out of gas, modifying the storage should
+	//be the last step.
 	
 	
-	PSUEDOCODE
-	For each entry of provider mapping:
-		if real provider and the request conditions meet their requirements and they are available
-			update global balances
-			update request.provider
+2. contract X executes assignTask or findRequest
+2.1 assignTask when task submitted.
+	assignTask( ) private returns (byte)
+	//assignTask should be triggered whenever new Request submitted, searching through the active provider pool.
+	//Return '0' if find a match and assigned.
+	//Return '1' if no match
+	//Return '2' if no available provider.
+	//called by requestTask() -- private.
+	
+	
+	
+PSUEDOCODE
+	For each entry of provider pool:
+		get the provider's address from Pool(array)
+		get the provider's object from the List(mapping)
+		if (available && meet requirements)
+			provider.availability = false	//exec first to lock this provider
+			update Request.provider
+			status '0' to '1', pending to providing
 			save request to mapping
-			provider.availability = false
-			increment global requestCount
+			
+			update balancesList
+			update count
 			emit event for provider to see and act upon
-			return true
+			return '0'
 		else
-			try next provider entry in mapping
+			try next provider entry in mapping //for loop
 	//upon failing to find provider (loop exited)
-	send ether back to requestor
-	return false
+	//send ether back to requestor	//handling ether is not fully considered and tested.
+	return '1'
+	if loop fail due to empty Pool, return '2'
+		
+2.2 findRequest when new provider added.
+	findRequest(Provider memory prov) private returns (byte)
+	//Should be triggered whenever new provider added, searching through the active requestPool.
+	//Return '0' if find a match and assigned.
+	//Return '1' if no match
+	//Return '2' if no available request.
+	//called by startProviding() -- private.
+
+PSUEDOCODE
+	For each entry of request pool:
+		get the request's reqID from Pool(array)
+		get the request's object from the List(mapping)
+		if (meet requirements)
+			provider.availability = false	//exec first to lock this provider
+			update Request.provider
+			status '0' to '1', pending to providing
+			save request to mapping
+			
+			update balancesList
+			update count
+			emit event for provider to see and act upon
+			return '0'
+		else
+			try next request entry in mapping //for loop
+	//upon failing to find request (loop exited)
+	//send ether back to requestor		//handling ether should be very careful
+	return '1'
+	if loop fail due to empty Pool, return '2'
+		
+2.3 TODO: maybe we can extract the common part of the previous two and put it into
+	function assgin(Request memory, Provider memory) private returns(bool)
 	
 3. B sees event with his address, does the requested computation then sends completeTask to X
 	completeTask(uint128 reqID, uint64 resultID) public returns (bool)
@@ -188,7 +287,14 @@ The whole scenario is working in following steps:
 		return validateTask(reqID)
 	else 
 		return false
-		
+
+
+
+
+
+
+
+//////////////////////////////////////////////update stop here
 4. X executes validateTask
 	validateTask(uint128 reqID) private returns (bool)
 	1. reqID - unique ID of the request that is being validated
