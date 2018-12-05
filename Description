@@ -2,6 +2,7 @@
 //Author: Taurus
 //copyright: tlu4@lsu.edu
 //status: updating, expected to release v1.0
+// may expand to a yellowpaper
 
 
 Smart contract description on blockchain AI(BCAI):
@@ -271,7 +272,15 @@ PSUEDOCODE
 2.3 TODO: maybe we can extract the common part of the previous two and put it into
 	function assgin(Request memory, Provider memory) private returns(bool)
 	
+	
 3. B sees event with his address, does the requested computation then sends completeTask to X
+	//event-listening,
+	// -->check<--  // dev , test
+	
+	
+	//computation offchain
+	
+	//completeTask
 	completeTask(uint128 reqID, uint64 resultID) public returns (bool)
 	1. reqID - the unique ID of the request that is being completed
 	2. resultID - similar to dataID. Let’s say raw data is stored off-chain. Use this ID to achieve data
