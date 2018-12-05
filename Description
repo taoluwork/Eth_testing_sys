@@ -220,14 +220,18 @@ PSUEDOCODE
 	
 	
 PSUEDOCODE
+	check pool: if any availabel provider 
 	For each entry of provider pool:
 		get the provider's address from Pool(array)
 		get the provider's object from the List(mapping)
 		if (available && meet requirements)
+			//update providerList
 			provider.availability = false	//exec first to lock this provider
+			providerPOP
+			//update reqList
 			update Request.provider
 			status '0' to '1', pending to providing
-			save request to mapping
+			requestPOP
 			
 			update balancesList
 			update count
